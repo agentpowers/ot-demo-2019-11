@@ -14,26 +14,34 @@ namespace FrontEndApp.Controllers
     public class WeatherForecastProxyController : ControllerBase
     {
         private readonly ILogger<WeatherForecastProxyController> _logger;
-        private readonly HttpClient _httpClient;
+        private readonly IHttpClientFactory _clientFactory;
 
         public WeatherForecastProxyController(
             ILogger<WeatherForecastProxyController> logger,
-            HttpClient httpClient)
+            IHttpClientFactory clientFactory)
         {
             _logger = logger;
-            _httpClient = httpClient;
+            _clientFactory = clientFactory;
         }
 
         [HttpGet]
         public async Task<IEnumerable<WeatherForecast>> Get()
         {
-            var jsonStream = await
-                      _httpClient.GetStreamAsync("http://localhost:5001/weatherforecast");
+            var request = new HttpRequestMessage(HttpMethod.Get,"http://localhost:5000/weatherforecast");
 
-            var weatherForecast = await
-                  JsonSerializer.DeserializeAsync<IEnumerable<WeatherForecast>>(jsonStream);
+            var client = _clientFactory.CreateClient();
 
-            return weatherForecast;
+            var response = await client.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                using var responseStream = await response.Content.ReadAsStreamAsync();
+                return await JsonSerializer.DeserializeAsync<IEnumerable<WeatherForecast>>(responseStream);
+            }
+            else
+            {
+                return new WeatherForecast[0];
+            }
         }
     }
 }

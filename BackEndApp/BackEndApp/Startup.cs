@@ -3,11 +3,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace.Configuration;
-using OpenTelemetry.Trace.Sampler;
-using System;
-using System.Collections.Generic;
+using OpenTracing;
+using OpenTracing.Util;
+using Jaeger.Samplers;
+using Jaeger;
 
 namespace BackEndApp
 {
@@ -25,28 +24,22 @@ namespace BackEndApp
         {
             services.AddControllers();
            
-            services.AddOpenTelemetry(b => {
-                b.AddRequestCollector()
-                .UseZipkin(o =>
-                {
-                    //o.ServiceName = "BackEndApp";
-                    o.Endpoint = new Uri("http://zipkin.azurewebsites.net/api/v2/spans");
-                });
+            services.AddOpenTracing();
 
+            // Adds the Jaeger Tracer.
+            services.AddSingleton<ITracer>(serviceProvider =>
+            {
+                string serviceName = serviceProvider.GetRequiredService<IWebHostEnvironment>().ApplicationName;
 
+                // This will log to a default localhost installation of Jaeger.
+                var tracer = new Tracer.Builder(serviceName)
+                    .WithSampler(new ConstSampler(true))
+                    .Build();
 
+                // Allows code that can't use DI to also access the tracer.
+                GlobalTracer.Register(tracer);
 
-
-                // sets sampler
-                //b.SetSampler(new HealthRequestsSampler(Samplers.AlwaysSample));
-
-                // sets resource
-                //b.SetResource(new Resource(new Dictionary<string, string>() {
-                //    { "service.name", "BackEndApp" },
-                //    { "deploymentTenantId", "kubecon-demo-surface" } }));
-
-                // set the FlightID from the distributed context
-                //b.AddProcessorPipeline(pipelineBuilder => pipelineBuilder.AddProcessor(_ => new FlightIDProperties()));
+                return tracer;
             });
         }
 
